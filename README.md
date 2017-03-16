@@ -12,7 +12,7 @@ Arduino101 sketch used in MOOVBIT project
 
 ## Documentation
 
-All info can be found downloading the thesis here http://amslaurea.unibo.it/12570/
+All info can be found downloading the thesis @ http://amslaurea.unibo.it/12570/
 
 
 ## License
