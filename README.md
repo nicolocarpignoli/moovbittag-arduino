@@ -1,6 +1,6 @@
 
 
-# moovbittag_arduino
+# moovbittag-arduino
 Arduino101 sketch used in MOOVBIT project
 
 ## Overview
