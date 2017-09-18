@@ -18,13 +18,16 @@ BLEFloatCharacteristic gxCharacteristic("19B10015-E8F2-537E-4F6C-D104768A1214", 
 BLEFloatCharacteristic gyCharacteristic("19B10016-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify); // rot.in y in deg/s
 BLEFloatCharacteristic gzCharacteristic("19B10017-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify); // rot.in z in deg/s
 BLEIntCharacteristic shockCharacteristic("19B10018-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);  // true if shock sensed
-BLELongCharacteristic authCharacteristic("9B100124-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // auth_characteristic
-/*BLEIntCharacteristic modeCharacteristic("19B10019-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // sensing mode
+BLEIntCharacteristic modeCharacteristic("19B10019-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // sensing mode
 BLEIntCharacteristic srangeCharacteristic("19B10020-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // shock range
 BLEIntCharacteristic arangeCharacteristic("19B10021-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // acc. range
 BLEIntCharacteristic grangeCharacteristic("9B100122-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite); // gyro range
-BLEIntCharacteristic calibCharacteristic("9B100123-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // 1 if calibration is on, otherwise 0
-*/
+//BLEIntCharacteristic calibCharacteristic("9B100123-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // 1 if calibration is on, otherwise 0
+BLELongCharacteristic authCharacteristic("19B100124-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // auth_characteristic
+
+//BLEIntCharacteristic arangeCharacteristic("19B10021-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // acc. range
+
+
 
 const uint8_t key[] PROGMEM = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
 
@@ -47,21 +50,21 @@ void setup()
   blePeripheral.addAttribute(gxCharacteristic);
   blePeripheral.addAttribute(gyCharacteristic);
   blePeripheral.addAttribute(gzCharacteristic);
-  // blePeripheral.addAttribute(shockCharacteristic);
-  // blePeripheral.addAttribute(modeCharacteristic);
+  blePeripheral.addAttribute(shockCharacteristic);
+   blePeripheral.addAttribute(modeCharacteristic);
   blePeripheral.addAttribute(arangeCharacteristic);
-  // blePeripheral.addAttribute(srangeCharacteristic);
-  // blePeripheral.addAttribute(grangeCharacteristic);*/
-  // blePeripheral.addAttribute(calibCharacteristic);
+   blePeripheral.addAttribute(srangeCharacteristic);
+   blePeripheral.addAttribute(grangeCharacteristic);
+//   blePeripheral.addAttribute(calibCharacteristic);
     blePeripheral.addAttribute(authCharacteristic);
   // set initial characteristics values
   stepCharacteristic.setValue(0);
   shockCharacteristic.setValue(0);
   modeCharacteristic.setValue(0);
   arangeCharacteristic.setValue(4);
-  srangeCharacteristic.setValue(4);
+ srangeCharacteristic.setValue(4);
   grangeCharacteristic.setValue(250);
-  calibCharacteristic.setValue(1);
+//  calibCharacteristic.setValue(1);
   authCharacteristic.setValue(0);
   blePeripheral.begin();
   /*if (calibCharacteristic.value() == 1) {
@@ -77,7 +80,7 @@ void setup()
   }*/
   // Configure sensors 
   CurieIMU.setAccelerometerRange(arangeCharacteristic.value());
-  CurieIMU.setGyroRange(grangeCharacteristic.value());
+//  CurieIMU.setGyroRange(grangeCharacteristic.value());
   CurieIMU.setStepDetectionMode(CURIE_IMU_STEP_MODE_SENSITIVE);
   CurieIMU.setStepCountEnabled(true);
   /*CurieIMU.setDetectionThreshold(CURIE_IMU_TAP, 750);       // (750mg)
