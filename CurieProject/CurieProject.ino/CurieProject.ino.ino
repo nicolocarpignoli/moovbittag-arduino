@@ -7,7 +7,15 @@
 int aix, aiy, aiz;    // raw accelerometer values
 int gix, giy, giz;    // raw gyro values
 bool flag = false;
-
+bool isAllowedFlag = false;
+long localDigest = -1;
+char digestHex[17];
+long firstHalf;
+long secondHalf; 
+boolean readyForTheSecond = false;
+String firstHalfString;
+String secondHalfString;
+String trustedAddress;
 BLEPeripheral blePeripheral;
 BLEService sensorService("19B10010-E8F2-537E-4F6C-D104768A1214");
 BLEUnsignedLongCharacteristic stepCharacteristic("19B10011-E8F2-537E-4F6C-D104768A1214", BLERead);  // stepcount
@@ -22,22 +30,14 @@ BLEIntCharacteristic modeCharacteristic("19B10019-E8F2-537E-4F6C-D104768A1214", 
 BLEIntCharacteristic srangeCharacteristic("19B10020-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // shock range
 BLEIntCharacteristic arangeCharacteristic("19B10021-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // acc. range
 BLEIntCharacteristic grangeCharacteristic("9B100122-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite); // gyro range
-//BLEIntCharacteristic calibCharacteristic("9B100123-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // 1 if calibration is on, otherwise 0
 BLELongCharacteristic authCharacteristic("19B100124-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // auth_characteristic
 
-//BLEIntCharacteristic arangeCharacteristic("19B10021-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);  // acc. range
-
-
-
-const uint8_t key[] PROGMEM = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-
-
+ 
 
 void setup()
 {
-   //Serial.begin(9600);
-   //while (!Serial);    // wait for the serial port to open
-  // Serial.println("Initializing IMU device...");
+   Serial.begin(9600);
+  // while (!Serial);    // wait for the serial port to open
   CurieIMU.begin();
   // configure Bluetooth
   blePeripheral.setLocalName("MOOVBIT");
@@ -51,129 +51,147 @@ void setup()
   blePeripheral.addAttribute(gyCharacteristic);
   blePeripheral.addAttribute(gzCharacteristic);
   blePeripheral.addAttribute(shockCharacteristic);
-   blePeripheral.addAttribute(modeCharacteristic);
+  blePeripheral.addAttribute(modeCharacteristic);
   blePeripheral.addAttribute(arangeCharacteristic);
-   blePeripheral.addAttribute(srangeCharacteristic);
-   blePeripheral.addAttribute(grangeCharacteristic);
-//   blePeripheral.addAttribute(calibCharacteristic);
-    blePeripheral.addAttribute(authCharacteristic);
+  blePeripheral.addAttribute(srangeCharacteristic);
+  blePeripheral.addAttribute(grangeCharacteristic);
+  blePeripheral.addAttribute(authCharacteristic);
   // set initial characteristics values
   stepCharacteristic.setValue(0);
   shockCharacteristic.setValue(0);
   modeCharacteristic.setValue(0);
   arangeCharacteristic.setValue(4);
- srangeCharacteristic.setValue(4);
+  srangeCharacteristic.setValue(4);
   grangeCharacteristic.setValue(250);
-//  calibCharacteristic.setValue(1);
-  authCharacteristic.setValue(0);
+  authCharacteristic.setValue(-1);
   blePeripheral.begin();
-  /*if (calibCharacteristic.value() == 1) {
-    //Serial.println("About to calibrate. Make sure your board is stable and upright");
-    delay(5000);
-    CurieIMU.autoCalibrateGyroOffset();
-    CurieIMU.autoCalibrateAccelerometerOffset(X_AXIS, 0);
-    CurieIMU.autoCalibrateAccelerometerOffset(Y_AXIS, 0);
-    CurieIMU.autoCalibrateAccelerometerOffset(Z_AXIS, 1);
-  }
-  else {
-    //Serial.println("No calibration");
-  }*/
-  // Configure sensors 
   CurieIMU.setAccelerometerRange(arangeCharacteristic.value());
-//  CurieIMU.setGyroRange(grangeCharacteristic.value());
   CurieIMU.setStepDetectionMode(CURIE_IMU_STEP_MODE_SENSITIVE);
   CurieIMU.setStepCountEnabled(true);
-  /*CurieIMU.setDetectionThreshold(CURIE_IMU_TAP, 750);       // (750mg)
-  CurieIMU.setDetectionThreshold(CURIE_IMU_DOUBLE_TAP, 750);    // (750mg)
-  CurieIMU.interrupts(CURIE_IMU_TAP);
-  CurieIMU.interrupts(CURIE_IMU_DOUBLE_TAP);*/
   CurieIMU.setDetectionThreshold(CURIE_IMU_SHOCK, srangeCharacteristic.value() * 500); // 1g = 1000 mg
   CurieIMU.setDetectionDuration(CURIE_IMU_SHOCK, 50); // 50ms or 75ms
   CurieIMU.interrupts(CURIE_IMU_SHOCK);
-  //CurieIMU.interrupts(CURIE_IMU_MOTION);
   CurieIMU.attachInterrupt(eventCallback);
-
-  //HANDLING KEY
-  
- // sipHash.initFromPROGMEM(key);
-  
-  //  printKey((uint8_t*)key);
-}
+  uint8_t key[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                        0x18, 0x19, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+  uint8_t message[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                        0x18, 0x19, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e};
+  int msgLen = 15;
+  sipHash.initFromPROGMEM(key);
+  for (int j=0; j<msgLen;j++) {
+      sipHash.updateHash((byte)message[j]);
+    }
+  sipHash.finish(); // result in BigEndian format
+  hexToAscii(sipHash.result,8,digestHex,17);
+ }
 
 void loop()
 {
-  if(!flag){
-   /* CurieIMU.setAccelerometerRange(arangeCharacteristic.value()); //  Stampare quando compro adattatore per BLE e clono indirizzo MAC 
-    Serial.println(CurieIMU.getAccelerometerRange()); */
-    CurieIMU.readMotionSensor(aix, aiy, aiz, gix, giy, giz);
-    flag = true;  
-  }else{
-    if(!axCharacteristic.setValue(convertRawAcceleration(aix))
-     || !ayCharacteristic.setValue(convertRawAcceleration(aiy))
-     || !azCharacteristic.setValue(convertRawAcceleration(aiz))
-     || !gxCharacteristic.setValue(convertRawGyro(gix))
-     || !gyCharacteristic.setValue(convertRawGyro(giy))
-     || !gzCharacteristic.setValue(convertRawGyro(giz))){
-      // do nothing
-    }
-    stepCharacteristic.setValue(CurieIMU.getStepCount());
-    shockCharacteristic.setValue(0);
-    flag = false;
-  }
-  delay(1000);
-  /* NOT IMPLEMENTED WRITE CHARS SO COMMENTED THIS SECTION
-  if (arangeCharacteristic.written()) CurieIMU.setAccelerometerRange(arangeCharacteristic.value());
-  if (grangeCharacteristic.written()) CurieIMU.setGyroRange(grangeCharacteristic.value());
-  if (srangeCharacteristic.written()) {
-  CurieIMU.setDetectionThreshold(CURIE_IMU_SHOCK, srangeCharacteristic.value() * 1000);
-  }
-  if (modeCharacteristic.written()) {
-  // change sensing mode
-  }*/
+//ARDUINO INIT:
+  BLECentral bleCentral = blePeripheral.central();
+  if (bleCentral) {
+     while(bleCentral.connected()){
+           String address = bleCentral.address();
+           boolean macClientIsAllowed = checkMac(address, trustedAddress);
+           if(isAllowedFlag || macClientIsAllowed){
+                  if(!flag){
+                      CurieIMU.readMotionSensor(aix, aiy, aiz, gix, giy, giz);
+                      flag = true;  
+                   }else{
+                      if(!axCharacteristic.setValue(convertRawAcceleration(aix))
+                      || !ayCharacteristic.setValue(convertRawAcceleration(aiy))
+                      || !azCharacteristic.setValue(convertRawAcceleration(aiz))
+                      || !gxCharacteristic.setValue(convertRawGyro(gix))
+                      || !gyCharacteristic.setValue(convertRawGyro(giy))
+                      || !gzCharacteristic.setValue(convertRawGyro(giz))){
+                            // do nothing
+                         }
+                      stepCharacteristic.setValue(CurieIMU.getStepCount());
+                      shockCharacteristic.setValue(0);
+                      flag = false;
+                    }
+                   delay(1000);
+            }
+           if(authCharacteristic.written()){ //CHECK IF MAC IS ALLOWED
+                       //ARDUINO WAIT FOR THE SECOND
+                       Serial.println("Auth is modified by: ");
+                       Serial.println(address);
+                       if(!readyForTheSecond){ 
+                              firstHalf = authCharacteristic.value();
+                              firstHalfString = String(firstHalf, 16);
+                              authCharacteristic.setValue(0);
+                              readyForTheSecond = true;
+                       }else { 
+                              readyForTheSecond = false;
+                              secondHalf = authCharacteristic.value();
+                              secondHalfString = String(secondHalf, 16);
+                            if (checkForAllowing(firstHalfString,secondHalfString)){
+                                      isAllowedFlag = true;
+                                      Serial.println("allowed: ");
+                                      trustedAddress= address;
+                                      Serial.println(address);
+                                      Serial.println(axCharacteristic.value());
+                              } else {
+                                isAllowedFlag = false;
+                                Serial.println("not allowed:" );
+                                Serial.println(address);
+                              }
+                        }
+                }
+            if(arangeCharacteristic.written()){
+                  Serial.println("I write the arangeChar");
+                  if ((isAllowedFlag == false) && (macClientIsAllowed == false)){
+                       Serial.println("i'm not allowed to write");
+                       arangeCharacteristic.setValue(0);
+                       Serial.println(arangeCharacteristic.value());   
+                 } else {
+                    Serial.println("i'm allowed to write");
+                    Serial.println(arangeCharacteristic.value());
+                 }
+           } 
+           
+          }
+ }
+ isAllowedFlag = false;
+}
+ 
+ 
 
-  /*if (motion) {
-    if (!axCharacteristic.setValue(convertRawAcceleration(aix)) || !ayCharacteristic.setValue(convertRawAcceleration(aiy)) ||
-      !azCharacteristic.setValue(convertRawAcceleration(aiz)) || !gxCharacteristic.setValue(convertRawGyro(gix)) ||
-      !gyCharacteristic.setValue(convertRawGyro(giy)) || !gzCharacteristic.setValue(convertRawGyro(giz))) {
-      //Serial.println("Erorr BLE");
-    }
-    stepCharacteristic.setValue(CurieIMU.getStepCount());
-    motion = false;
-  }
-  
-  shockCharacteristic.setValue(0);*/
+boolean checkForAllowing(String firstHalf,String secondHalf){
+  String digest = secondHalf + firstHalf;
+  Serial.println("External digest is: ");
+  Serial.println(digest);
+  String localDigest = String(digestHex);
+  Serial.println("local digest is: ");
+  Serial.println(localDigest);
+  return localDigest.equalsIgnoreCase(digest);
 }
 
-/*void printKey(unsigned char PROGMEM *key) {
+
+boolean checkMac(String newMac, String trustedMac){
+  return newMac.equalsIgnoreCase(trustedMac);
+}
+
+
+
+void eventCallback() {
+  if (CurieIMU.getInterruptStatus(CURIE_IMU_SHOCK)) {
+    shockCharacteristic.setValue(1);
+  }
+}
+
+
+
+
+void printKey(unsigned char PROGMEM *key) {
   Serial.print(F(" Key:"));
   unsigned char tmpKey[16];
   memcpy_P(tmpKey,key,16);
   char tmp[33];
   hexToAscii((const unsigned char*)tmpKey,16,tmp,33);
   Serial.println(tmp);
-}*/
-void eventCallback() {
-  if (CurieIMU.getInterruptStatus(CURIE_IMU_SHOCK)) {
-    shockCharacteristic.setValue(1);
-  }
-
 }
 
-
-/*
-float AnalyzeMessage(Message m){}
-
-float checkForAuthorization(hash1,hash2){}
-
-unsigned char* calculateHashWithKey(Message m){}
-
-void storeMAC(MacAdress mac){}
-
-void showRealCharacteristic(){}
-
-void showFakeCharacteristic(){}
-
-*/
 
 
 
